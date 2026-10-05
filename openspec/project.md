@@ -139,9 +139,9 @@ $$
 Интервалы между появлениями:
 
 $$
-\Delta t_{\mathrm{car}}\sim\operatorname{Exp}(\lambda_{\mathrm{car}}),
+\Delta t_{\mathrm{car}}\sim\mathrm{Exp}(\lambda_{\mathrm{car}}),
 \qquad
-\Delta t_{\mathrm{ped}}\sim\operatorname{Exp}(\lambda_{\mathrm{ped}}).
+\Delta t_{\mathrm{ped}}\sim\mathrm{Exp}(\lambda_{\mathrm{ped}}).
 $$
 
 **Что реализовать:**
@@ -379,35 +379,20 @@ yield segment.free_space.put(1)
 
 То есть переход логически должен выглядеть так:
 
-```mermaid
-flowchart LR
-    n0["доехал до конца edge A"]
-    n1["встал в очередь LEFT"]
-    n2["дождался разрешающей фазы"]
-    n3["дождался свободного места на edge B"]
-    n4["занял edge B"]
-    n5["освободил место на edge A"]
-    n0 --> n1
-    n1 --> n2
-    n2 --> n3
-    n3 --> n4
-    n4 --> n5
-```
+* доехал до конца edge A
+* встал в очередь LEFT
+* дождался разрешающей фазы
+* дождался свободного места на edge B
+* занял edge B
+* освободил место на edge A
 
 Именно это автоматически даёт **обратный поток**:
 
-```mermaid
-flowchart LR
-    n0["B заполнен"]
-    n1["машины не могут уйти из A"]
-    n2["очередь A растёт"]
-    n3["A заполняется"]
-    n4["предыдущий перекрёсток тоже начинает блокироваться"]
-    n0 --> n1
-    n1 --> n2
-    n2 --> n3
-    n3 --> n4
-```
+* B заполнен
+* машины не могут уйти из A
+* очередь A растёт
+* A заполняется
+* предыдущий перекрёсток тоже начинает блокироваться
 
 Это, на мой взгляд, одна из самых сильных частей выбранной модели. Мы получаем сетевые заторы без симуляции координат, дистанций и ускорений.
 
@@ -550,7 +535,7 @@ $$
 Пешеходский поток можно сначала моделировать как:
 
 $$
-\Delta t_{\mathrm{ped}} \sim \operatorname{Exp}(\lambda_{\mathrm{ped}}).
+\Delta t_{\mathrm{ped}} \sim \mathrm{Exp}(\lambda_{\mathrm{ped}}).
 $$
 
 Пешеход ожидает разрешающей фазы.
@@ -619,7 +604,7 @@ $$
 Можно определить оценку фазы:
 
 $$
-\operatorname{Score}(p) = \alpha \sum_{m \in p} Q_m + \beta \max_{m \in p} W_m.
+\mathrm{Score}(p) = \alpha \sum_{m \in p} Q_m + \beta \max_{m \in p} W_m.
 $$
 
 Далее выбирается наиболее приоритетная допустимая фаза с соблюдением min/max green, yellow, clearance и требований к пешеходам.
@@ -666,9 +651,7 @@ Time-of-day на этапе 2 можно не реализовывать как 
 
 Это позволит анализировать развитие очереди и spillback во времени.
 
-### Архитектура всей системы
-
-### Рекомендуемая архитектура этапа 2
+### Рекомендуемая архитектура системы
 
 ```text
 simulation/
@@ -886,7 +869,7 @@ flowchart LR
 Для каждого перекрёстка нужно построить:
 
 $$
-M_v \subseteq \operatorname{In}(v) \times \operatorname{Out}(v).
+M_v \subseteq \mathrm{In}(v) \times \mathrm{Out}(v).
 $$
 
 Первичную классификацию можно делать по углам между сегментами:
@@ -1148,7 +1131,7 @@ $$
 В простейшей модели:
 
 $$
-\Delta t \sim \operatorname{Exp}(\lambda).
+\Delta t \sim \mathrm{Exp}(\lambda).
 $$
 
 Если данные представлены по 15-минутным интервалам, строится кусочно-постоянная интенсивность:
@@ -1286,7 +1269,7 @@ $$
 найти $\theta^{*}$, минимизирующее расхождение между наблюдаемыми и модельными метриками:
 
 $$
-\theta^{*} = \operatorname*{arg\,min}_{\theta} L\left(Y_{\mathrm{cal}},\widehat{Y}_{\mathrm{cal}}(\theta)\right).
+\theta^{*} = \underset{\theta}{\mathrm{arg\,min}}\, L\left(Y_{\mathrm{cal}},\widehat{Y}_{\mathrm{cal}}(\theta)\right).
 $$
 
 В качестве $L$ можно использовать взвешенную ошибку по:
