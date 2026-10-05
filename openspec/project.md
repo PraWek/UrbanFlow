@@ -973,7 +973,7 @@ flowchart LR
 Нужно преобразовать исходные данные города в единый формат параметров спроса и управления:
 
 $$
-\Theta = \left\{\lambda_e(t),\,p_{ij}(t),\,\lambda_{\mathrm{ped},k}(t),\,\mathrm{signal\_plan},\,\mathrm{validation\_observations}\right\}.
+\Theta = \left\lbrace \lambda_e(t),\,p_{ij}(t),\,\lambda_{\mathrm{ped},k}(t),\,\mathrm{signal\_plan},\,\mathrm{validation\_observations}\right\rbrace.
 $$
 
 После этого SimPy должен генерировать поток, статистически согласованный с опубликованными измерениями.
