@@ -84,6 +84,7 @@ $$
 ## Учебные материалы
 
 SimPy documentation
+
 0. https://simpy.readthedocs.io/en/latest/simpy_intro/index.html
 1. https://simpy.readthedocs.io/en/latest/topical_guides/simpy_basics.html
 2. https://simpy.readthedocs.io/en/latest/topical_guides/environments.html
