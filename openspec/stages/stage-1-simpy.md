@@ -30,10 +30,10 @@ $$
 | `Environment`      | Environment это среда проведения экспериментов, которая отвечает за координацию работы процессов |
 
 Материалы: 
-1. [SimPy - Basic Concepts](https://simpy.readthedocs.io/en/latest/simpy_intro/basic_concepts.html)
-2. [SimPy — Process Interaction](https://simpy.readthedocs.io/en/latest/simpy_intro/process_interaction.html)
-3. https://projector-video-pdf-converter.datacamp.com/30360/chapter2.pdf
-
+0. https://projector-video-pdf-converter.datacamp.com/30360/chapter1.pdf
+1. https://projector-video-pdf-converter.datacamp.com/30360/chapter2.pdf, first two blocks
+2. [SimPy - Basic Concepts](https://simpy.readthedocs.io/en/latest/simpy_intro/basic_concepts.html)
+3. [SimPy — Process Interaction](https://simpy.readthedocs.io/en/latest/simpy_intro/process_interaction.html)
 
 ### Ресурсы совместного использования
 
@@ -61,7 +61,7 @@ $$
 Материалы:
 
 1. [SimPy — Ресурсы совместного использования](https://simpy.readthedocs.io/en/stable/topical_guides/resources.html)
-2. https://projector-video-pdf-converter.datacamp.com/30360/chapter2.pdf
+2. https://projector-video-pdf-converter.datacamp.com/30360/chapter2.pdf, Resources blocks
 
 ### Monitoring
 
