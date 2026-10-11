@@ -74,6 +74,12 @@ $$
 Материалы:
   [SimPy — Monitoring](https://simpy.readthedocs.io/en/stable/topical_guides/monitoring.html)
 
+## Про подходы к построению моделей
+
+Материалы:
+1. https://projector-video-pdf-converter.datacamp.com/30360/chapter3.pdf
+2. https://des.hsma.co.uk/intro_to_des_concepts.html
+
 ## Учебные материалы
 
 SimPy documentation
@@ -83,10 +89,8 @@ SimPy documentation
 3. https://simpy.readthedocs.io/en/latest/topical_guides/resources.html
 
 Subject specific tutorials 
-0. https://projector-video-pdf-converter.datacamp.com/30360/chapter3.pdf
 1. https://pythonhealthdatascience.github.io/intro-open-sim/lab/index.html
 2. https://jckantor.github.io/cbe30338-2021/07.01-Introduction-to-Simpy.html
-3. https://des.hsma.co.uk/intro_to_des_concepts.html
 
 ## Упражнения
 
