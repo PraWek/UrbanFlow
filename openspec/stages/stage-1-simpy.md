@@ -88,9 +88,10 @@ SimPy documentation
 2. https://simpy.readthedocs.io/en/latest/topical_guides/events.html
 3. https://simpy.readthedocs.io/en/latest/topical_guides/resources.html
 
-Subject specific tutorials 
-1. https://pythonhealthdatascience.github.io/intro-open-sim/lab/index.html
-2. https://jckantor.github.io/cbe30338-2021/07.01-Introduction-to-Simpy.html
+SimPy intro courses
+0. https://www.datacamp.com/courses/discrete-event-simulation-in-python - paid
+1. https://pythonhealthdatascience.github.io/intro-open-sim/lab/index.html - free
+2. https://jckantor.github.io/cbe30338-2021/07.01-Introduction-to-Simpy.html - free
 
 ## Упражнения
 
