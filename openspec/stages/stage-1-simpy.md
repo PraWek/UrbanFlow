@@ -77,6 +77,7 @@ $$
 ## Про подходы к построению моделей
 
 Материалы:
+
 1. https://projector-video-pdf-converter.datacamp.com/30360/chapter3.pdf
 2. https://des.hsma.co.uk/intro_to_des_concepts.html
 
@@ -89,6 +90,7 @@ SimPy documentation
 3. https://simpy.readthedocs.io/en/latest/topical_guides/resources.html
 
 SimPy intro courses
+
 0. https://www.datacamp.com/courses/discrete-event-simulation-in-python - paid
 1. https://pythonhealthdatascience.github.io/intro-open-sim/lab/index.html - free
 2. https://jckantor.github.io/cbe30338-2021/07.01-Introduction-to-Simpy.html - free
