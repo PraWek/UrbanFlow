@@ -3,7 +3,7 @@ from .simulation import (
     CoordinatedCorridorSimulation,
     Direction,
     Kind,
-    Phase,
+    LightPhase,
 )
 
 __all__ = [
@@ -11,5 +11,5 @@ __all__ = [
     "CoordinatedCorridorSimulation",
     "Direction",
     "Kind",
-    "Phase",
+    "LightPhase",
 ]

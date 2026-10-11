@@ -26,12 +26,37 @@ def run_simulation(**kwargs):
 
 
 class DownstreamSpillbackTests(unittest.TestCase):
+    def test_waits_for_later_arrivals_after_queue_drains(self):
+        _, result = run_simulation(car_arrivals=[0, 120], pedestrian_arrivals=[])
+        self.assertEqual([car.finished_at for car in cars(result)], [22, 142])
+        self.assertEqual(result.finished_at, 142)
+        self.assertEqual(result.count_finished(), 2)
+
+    def test_capacity_release_rechecks_vehicle_phase(self):
+        for downstream_length, expected_start in ((255, 19), (270, 30)):
+            with self.subTest(downstream_length=downstream_length):
+                simulation, result = run_simulation(
+                    car_arrivals=[0, 0], pedestrian_arrivals=[], is_car_at_stop_line=True,
+                    downstream_capacity_count=1, downstream_length=downstream_length,
+                )
+                self.assertEqual(cars(result)[1].crossing_started_at, expected_start)
+                self.assertEqual(cars(result)[1].crossing_finished_at, expected_start + 2)
+                self.assertEqual(result.count(Kind.CAR), 2)
+                self.assertEqual(result.count_finished(), 2)
+                self.assertEqual(simulation.free_places_at_end_count, 1)
+
+    def test_empty_input_finishes_immediately(self):
+        simulation, result = run_simulation(car_arrivals=[], pedestrian_arrivals=[])
+        self.assertEqual(result.finished_at, 0)
+        self.assertEqual(result.count_finished(), 0)
+        self.assertEqual(simulation.free_places_at_end_count, 5)
+
     def test_closed_exit_blocks_after_five_reservations(self):
         simulation, result = run_simulation(
             car_arrivals=[0] * 8,
             pedestrian_arrivals=[1, 1],
-            cars_at_stop_line=True,
-            pedestrians_at_crossing=True,
+            is_car_at_stop_line=True,
+            is_pedestrian_at_crossing=True,
             exit_blocked_until=60,
         )
         self.assertEqual(
@@ -46,10 +71,10 @@ class DownstreamSpillbackTests(unittest.TestCase):
         )
         self.assertGreater(cars(result)[5].downstream_blocked_time, 0)
         self.assertLessEqual(
-            max(row["downstream_used"] for row in result.monitoring), 5
+            max(snapshot.downstream_used_count for snapshot in result.monitoring), 5
         )
-        self.assertEqual(result.monitoring[-1]["downstream_used"], 0)
-        self.assertEqual(simulation.free_places_at_end, 5)
+        self.assertEqual(result.monitoring[-1].downstream_used_count, 0)
+        self.assertEqual(simulation.free_places_at_end_count, 5)
 
     def test_identical_input_streams_for_open_and_blocked_exit(self):
         _, opened = run_simulation(seed=7)

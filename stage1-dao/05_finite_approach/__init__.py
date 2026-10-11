@@ -1,3 +1,3 @@
-from .simulation import FiniteApproachSimulation, Kind, Phase
+from .simulation import FiniteApproachSimulation, Kind, LightPhase
 
-__all__ = ["FiniteApproachSimulation", "Kind", "Phase"]
+__all__ = ["FiniteApproachSimulation", "Kind", "LightPhase"]

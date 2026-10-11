@@ -13,7 +13,7 @@ class Kind(str, Enum):
     PEDESTRIAN = "pedestrian"
 
 
-class Phase(str, Enum):
+class LightPhase(str, Enum):
     VEHICLES = "vehicles"
     PEDESTRIANS = "pedestrians"
 
@@ -26,6 +26,7 @@ class Participant:
     kind: Kind
     speed: float
     appeared_at: float
+    route_finished_event: simpy.Event
     queue_entered_at: float | None = None
     crossing_started_at: float | None = None
     crossing_finished_at: float | None = None
@@ -44,39 +45,115 @@ class Participant:
         self.queue = queue
         self.id = f"{kind.value}-{id:03d}"
         self.kind = kind
-        self.speed = 15 if kind is Kind.CAR else 1.4
         self.appeared_at = appeared_at
         self.queue_entered_at = None
         self.crossing_started_at = None
         self.crossing_finished_at = None
         self.finished_at = None
+        self.route_finished_event = env.event()
         self.downstream_blocked_time = 0.0
 
     def travel(self, distance: float):
-        yield self.env.timeout(distance / self.speed)
+        yield self.env.timeout(self.duration(distance))
 
-    def approach(self, distance: float):
+    def approach_crossing(self, distance: float):
         yield from self.travel(distance)
         self.queue_entered_at = float(self.env.now)
         print(f"time={self.env.now:.3f}, id={self.id}, kind={self.kind.value}, queued")
         yield self.queue.put(self)
 
-    def crossing_duration(self, distance: float) -> float:
+    def duration(self, distance: float) -> float:
         return distance / self.speed
 
-    def may_start(self, distance: float, phase_ends_at: float) -> bool:
-        return self.env.now + self.crossing_duration(distance) <= phase_ends_at + 1e-9
-
-    def finish(self) -> None:
+    def run(self, distance: float | None, monitor: Callable[[], None]):
+        if distance is not None:
+            yield from self.approach_crossing(distance)
+        yield self.route_finished_event
         self.finished_at = float(self.env.now)
         print(f"time={self.env.now:.3f}, id={self.id}, kind={self.kind.value}, finished")
+        monitor()
+
+
+class Car(Participant):
+    def __init__(self, env: simpy.Environment, queue: simpy.Store, id: int, appeared_at: float) -> None:
+        super().__init__(env, queue, id, Kind.CAR, appeared_at)
+        self.speed = 15
+
+    def serve_crossing(self, light_phase_controller, crossing_length, free_downstream, holders, capacity_changed, travel_downstream, monitor):
+        while True:
+            car = yield self.queue.get()
+            while True:
+                if light_phase_controller.phase is not LightPhase.VEHICLES:
+                    yield light_phase_controller.phase_changed_event
+                    continue
+                if free_downstream.level < 1:
+                    wait_started = float(self.env.now)
+                    yield simpy.AnyOf(self.env, [capacity_changed(), light_phase_controller.phase_changed_event])
+                    car.downstream_blocked_time += float(self.env.now) - wait_started
+                    continue
+                yield free_downstream.get(1)
+                holders[car.id] = "reserved"
+                monitor()
+                break
+            car.crossing_started_at = float(self.env.now)
+            print(f"time={self.env.now:.3f}, id={car.id}, kind={car.kind.value}, crossing_started")
+            yield self.env.timeout(car.duration(crossing_length))
+            car.crossing_finished_at = float(self.env.now)
+            print(f"time={self.env.now:.3f}, id={car.id}, kind={car.kind.value}, downstream_entered")
+            self.env.process(travel_downstream(car))
+
+
+class Pedestrian(Participant):
+    def __init__(self, env: simpy.Environment, queue: simpy.Store, id: int, appeared_at: float) -> None:
+        super().__init__(env, queue, id, Kind.PEDESTRIAN, appeared_at)
+        self.speed = 1.4
+
+    def serve_crossing(self, light_phase_controller, crossing_length, monitor):
+        while True:
+            phase = yield light_phase_controller.phase_changed_event
+            if phase is not LightPhase.PEDESTRIANS:
+                continue
+            ready = [participant for participant in self.queue.items if participant.queue_entered_at is not None and participant.queue_entered_at < self.env.now]
+            if not ready:
+                continue
+            group = []
+            for _ in ready:
+                group.append((yield self.queue.get()))
+            for pedestrian in group:
+                pedestrian.crossing_started_at = float(self.env.now)
+                print(f"time={self.env.now:.3f}, id={pedestrian.id}, kind={pedestrian.kind.value}, crossing_started")
+            monitor()
+            yield self.env.timeout(group[0].duration(crossing_length))
+            for pedestrian in group:
+                pedestrian.crossing_finished_at = float(self.env.now)
+                pedestrian.route_finished_event.succeed()
+
+
+@dataclass(frozen=True)
+class MonitoringSnapshot:
+    time: float
+    queue_before_crossing_len: int
+    pedestrian_queue_len: int
+    downstream_reserved_count: int
+    downstream_occupied_count: int
+
+    @property
+    def downstream_used_count(self) -> int:
+        return self.downstream_reserved_count + self.downstream_occupied_count
 
 
 @dataclass
 class Journal:
     participants: list[Participant] = field(default_factory=list)
-    monitoring: list[dict] = field(default_factory=list)
+    monitoring: list[MonitoringSnapshot] = field(default_factory=list)
     finished_at: float = 0.0
+
+    def count(self, kind: Kind) -> int:
+        return sum(p.kind == kind for p in self.participants)
+
+    def count_finished(self) -> int:
+        return sum(p.finished_at is not None for p in self.participants)
+
 
 
 def poisson_source(
@@ -111,12 +188,12 @@ def scheduled_source(
 class PhaseController:
     def __init__(self, env: simpy.Environment) -> None:
         self.env = env
-        self.phase = Phase.VEHICLES
+        self.phase = LightPhase.VEHICLES
         self.phase_ends_at = float(env.now) + 20
         self.phase_changed_event = env.event()
 
     def run(self):
-        phases = ((Phase.VEHICLES, 20), (Phase.PEDESTRIANS, 10))
+        phases = ((LightPhase.VEHICLES, 20), (LightPhase.PEDESTRIANS, 10))
         index = 0
         print(f"time={self.env.now:.3f}, phase change, allowed={self.phase.value}")
         while True:
@@ -144,9 +221,9 @@ class DownstreamSpillbackSimulation:
         downstream_length: float = 150,
         car_arrivals: Iterable[float] | None = None,
         pedestrian_arrivals: Iterable[float] | None = None,
-        cars_at_stop_line: bool = False,
-        pedestrians_at_crossing: bool = False,
-        downstream_capacity: int = 5,
+        is_car_at_stop_line: bool = False,
+        is_pedestrian_at_crossing: bool = False,
+        downstream_capacity_count: int = 5,
         exit_blocked_until: float = 0,
     ) -> None:
         lengths = (
@@ -158,13 +235,13 @@ class DownstreamSpillbackSimulation:
         )
         if horizon_ms <= 0 or any(length <= 0 for length in lengths):
             raise ValueError("Параметры времени и расстояния должны быть положительными")
-        if downstream_capacity <= 0 or exit_blocked_until < 0:
+        if downstream_capacity_count <= 0 or exit_blocked_until < 0:
             raise ValueError("Параметры вместимости и блокировки заданы неверно")
         self.env = env
         self.journal = Journal()
         self.seed = seed
         self.horizon_ms = horizon_ms
-        self.intersection_approach_length = intersection_approach_length
+        self.car_intersection_approach_length = intersection_approach_length
         self.pedestrian_approach_length = pedestrian_approach_length
         self.car_crossing_length = car_crossing_length
         self.pedestrian_crossing_length = pedestrian_crossing_length
@@ -174,11 +251,11 @@ class DownstreamSpillbackSimulation:
         for arrivals in (self.car_arrivals, self.pedestrian_arrivals):
             if arrivals is not None and any(time < 0 for time in arrivals):
                 raise ValueError("Время появления не может быть отрицательным")
-        self.cars_at_stop_line = cars_at_stop_line
-        self.pedestrians_at_crossing = pedestrians_at_crossing
-        self.downstream_capacity = downstream_capacity
+        self.is_car_at_stop_line = is_car_at_stop_line
+        self.is_pedestrian_at_crossing = is_pedestrian_at_crossing
+        self.downstream_capacity_count = downstream_capacity_count
         self.exit_blocked_until = exit_blocked_until
-        self.free_places_at_end: float | None = None
+        self.free_places_at_end_count: float | None = None
 
     def now(self) -> float:
         return float(self.env.now)
@@ -198,30 +275,26 @@ class DownstreamSpillbackSimulation:
     def run(self) -> Journal:
         car_queue = simpy.Store(self.env)
         pedestrian_queue = simpy.Store(self.env)
-        free_downstream = simpy.Container(self.env, capacity=self.downstream_capacity, init=self.downstream_capacity)
+        free_downstream = simpy.Container(self.env, capacity=self.downstream_capacity_count, init=self.downstream_capacity_count)
         holders: dict[str, str] = {}
-        phase_controller = PhaseController(self.env)
+        light_phase_controller = PhaseController(self.env)
         capacity_changed_event = self.env.event()
-        done_event = self.env.event()
-        counters = {Kind.CAR: 0, Kind.PEDESTRIAN: 0}
-        completed_participants = 0
-        is_input_closed = False
+        participant_processes: list[simpy.Process] = []
 
         def monitor() -> None:
-            reserved = sum(state == "reserved" for state in holders.values())
-            occupied = sum(state == "occupied" for state in holders.values())
-            row = {
-                "time": self.now(),
-                "queue_before_crossing": len(car_queue.items),
-                "pedestrian_queue": len(pedestrian_queue.items),
-                "downstream_reserved": reserved,
-                "downstream_occupied": occupied,
-                "downstream_used": reserved + occupied,
-            }
-            if self.journal.monitoring and self.journal.monitoring[-1]["time"] == self.env.now:
-                self.journal.monitoring[-1] = row
+            reserved_count = sum(state == "reserved" for state in holders.values())
+            occupied_count = sum(state == "occupied" for state in holders.values())
+            snapshot = MonitoringSnapshot(
+                time=self.now(),
+                queue_before_crossing_len=len(car_queue.items),
+                pedestrian_queue_len=len(pedestrian_queue.items),
+                downstream_reserved_count=reserved_count,
+                downstream_occupied_count=occupied_count,
+            )
+            if self.journal.monitoring and self.journal.monitoring[-1].time == self.env.now:
+                self.journal.monitoring[-1] = snapshot
             else:
-                self.journal.monitoring.append(row)
+                self.journal.monitoring.append(snapshot)
 
         def notify_capacity() -> None:
             nonlocal capacity_changed_event
@@ -230,29 +303,24 @@ class DownstreamSpillbackSimulation:
             if not previous_event.triggered:
                 previous_event.succeed()
 
-        def maybe_finish() -> None:
-            if is_input_closed and completed_participants == len(self.journal.participants) and not done_event.triggered:
-                done_event.succeed()
-
-        def mark_completed(participant: Participant) -> None:
-            nonlocal completed_participants
-            participant.finish()
-            completed_participants += 1
-            monitor()
-            maybe_finish()
-
         def spawn(kind: Kind) -> None:
-            counters[kind] += 1
+            participant_id = self.journal.count(kind) + 1
             if kind is Kind.CAR:
                 queue = car_queue
-                distance = 0 if self.cars_at_stop_line else self.intersection_approach_length
+                distance = 0 if self.is_car_at_stop_line else self.car_intersection_approach_length
             else:
                 queue = pedestrian_queue
-                distance = 0 if self.pedestrians_at_crossing else self.pedestrian_approach_length
-            participant = Participant(self.env, queue, counters[kind], kind, self.now())
+                distance = 0 if self.is_pedestrian_at_crossing else self.pedestrian_approach_length
+            participant_type = Car if kind is Kind.CAR else Pedestrian
+            participant = participant_type(self.env, queue, participant_id, self.now())
             self.journal.participants.append(participant)
+            if participant_id == 1:
+                if kind is Kind.CAR:
+                    self.env.process(participant.serve_crossing(light_phase_controller, self.car_crossing_length, free_downstream, holders, lambda: capacity_changed_event, travel_downstream, monitor))
+                else:
+                    self.env.process(participant.serve_crossing(light_phase_controller, self.pedestrian_crossing_length, monitor))
             print(f"time={self.now():.3f}, id={participant.id}, kind={participant.kind.value}, appeared")
-            self.env.process(participant.approach(distance))
+            participant_processes.append(self.env.process(participant.run(distance, monitor)))
 
         def travel_downstream(participant: Participant):
             holders[participant.id] = "occupied"
@@ -263,50 +331,7 @@ class DownstreamSpillbackSimulation:
             holders.pop(participant.id)
             yield free_downstream.put(1)
             notify_capacity()
-            mark_completed(participant)
-
-        def serve_cars():
-            while True:
-                car = yield car_queue.get()
-                while True:
-                    if phase_controller.phase is not Phase.VEHICLES or not car.may_start(self.car_crossing_length, phase_controller.phase_ends_at):
-                        yield phase_controller.phase_changed_event
-                        continue
-                    if free_downstream.level < 1:
-                        wait_started = self.now()
-                        yield simpy.AnyOf(self.env, [capacity_changed_event, phase_controller.phase_changed_event])
-                        car.downstream_blocked_time += self.now() - wait_started
-                        continue
-                    yield free_downstream.get(1)
-                    holders[car.id] = "reserved"
-                    monitor()
-                    break
-                car.crossing_started_at = self.now()
-                print(f"time={self.now():.3f}, id={car.id}, kind={car.kind.value}, crossing_started")
-                yield self.env.timeout(car.crossing_duration(self.car_crossing_length))
-                car.crossing_finished_at = self.now()
-                print(f"time={self.now():.3f}, id={car.id}, kind={car.kind.value}, downstream_entered")
-                self.env.process(travel_downstream(car))
-
-        def serve_pedestrians():
-            while True:
-                phase = yield phase_controller.phase_changed_event
-                if phase is not Phase.PEDESTRIANS:
-                    continue
-                ready = [participant for participant in pedestrian_queue.items if participant.queue_entered_at is not None and participant.queue_entered_at < self.now()]
-                if not ready:
-                    continue
-                group = []
-                for _ in ready:
-                    group.append((yield pedestrian_queue.get()))
-                for pedestrian in group:
-                    pedestrian.crossing_started_at = self.now()
-                    print(f"time={self.now():.3f}, id={pedestrian.id}, kind={pedestrian.kind.value}, crossing_started")
-                monitor()
-                yield self.env.timeout(group[0].crossing_duration(self.pedestrian_crossing_length))
-                for pedestrian in group:
-                    pedestrian.crossing_finished_at = self.now()
-                    mark_completed(pedestrian)
+            participant.route_finished_event.succeed()
 
         sources = []
         for kind, arrivals, rate, stream_seed in (
@@ -315,19 +340,11 @@ class DownstreamSpillbackSimulation:
         ):
             sources.append(self.env.process(self.source(kind, arrivals, rate, stream_seed, spawn)))
 
-        def close_input():
-            nonlocal is_input_closed
-            yield simpy.AllOf(self.env, sources)
-            is_input_closed = True
-            maybe_finish()
-
-        self.env.process(phase_controller.run())
-        self.env.process(serve_cars())
-        self.env.process(serve_pedestrians())
-        self.env.process(close_input())
+        self.env.process(light_phase_controller.run())
         monitor()
-        self.env.run(until=done_event)
-        self.free_places_at_end = free_downstream.level
+        self.env.run(until=simpy.AllOf(self.env, sources))
+        self.env.run(until=simpy.AllOf(self.env, participant_processes))
+        self.free_places_at_end_count = free_downstream.level
         self.journal.finished_at = self.now()
         monitor()
         return self.journal
@@ -340,9 +357,17 @@ def compare_open_and_blocked(seed: int = 42) -> tuple[Journal, Journal]:
 
 
 def main() -> None:
-    result = DownstreamSpillbackSimulation(env=simpy.Environment(), car_arrivals=[0] * 8, pedestrian_arrivals=[1, 1], cars_at_stop_line=True, pedestrians_at_crossing=True, exit_blocked_until=60).run()
+    result = DownstreamSpillbackSimulation(
+        env=simpy.Environment(),
+        car_arrivals=[0] * 8,
+        pedestrian_arrivals=[1, 1],
+        is_car_at_stop_line=True,
+        is_pedestrian_at_crossing=True,
+        exit_blocked_until=60
+    ).run()
     for participant in result.participants:
-        print(f"id={participant.id}, kind={participant.kind.value}, crossing_started_at={participant.crossing_started_at}, crossing_finished_at={participant.crossing_finished_at}, finished_at={participant.finished_at}, downstream_blocked_time={participant.downstream_blocked_time}")
+        print(f"id={participant.id}, kind={participant.kind.value}, "
+              f"crossing_started_at={participant.crossing_started_at}, crossing_finished_at={participant.crossing_finished_at}, finished_at={participant.finished_at}, downstream_blocked_time={participant.downstream_blocked_time}")
 
 
 if __name__ == "__main__":

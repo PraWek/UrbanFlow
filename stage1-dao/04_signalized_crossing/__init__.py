@@ -1,3 +1,3 @@
-from .simulation import Kind, Phase, SignalizedCrossingSimulation
+from .simulation import Kind, LightPhase, SignalizedCrossingSimulation
 
-__all__ = ["Kind", "Phase", "SignalizedCrossingSimulation"]
+__all__ = ["Kind", "LightPhase", "SignalizedCrossingSimulation"]

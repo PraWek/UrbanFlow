@@ -1,3 +1,3 @@
-from .simulation import DownstreamSpillbackSimulation, Kind, Phase
+from .simulation import DownstreamSpillbackSimulation, Kind, LightPhase
 
-__all__ = ["DownstreamSpillbackSimulation", "Kind", "Phase"]
+__all__ = ["DownstreamSpillbackSimulation", "Kind", "LightPhase"]

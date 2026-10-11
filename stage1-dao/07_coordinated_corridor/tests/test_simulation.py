@@ -16,7 +16,7 @@ def cars(result):
     return [
         user
         for user in result.participants
-        if user.kind is Kind.CAR and not user.initial
+        if user.kind is Kind.CAR and not user.is_initial
     ]
 
 
@@ -31,6 +31,43 @@ def run_simulation(**kwargs):
 
 
 class CoordinatedCorridorTests(unittest.TestCase):
+    def test_waits_for_later_arrivals_after_queue_drains(self):
+        _, result = run_simulation(
+            car_arrivals=[CarArrival(0, Direction.STRAIGHT), CarArrival(120, Direction.STRAIGHT)],
+            pedestrian_arrivals=[], is_car_at_stop_line=True,
+        )
+        self.assertEqual([car.finished_at for car in cars(result)], [14, 134])
+        self.assertEqual(result.finished_at, 134)
+        self.assertEqual(result.count_finished(), 2)
+
+    def test_car_can_finish_after_central_and_receiver_phase_ends(self):
+        simulation, result = run_simulation(
+            car_arrivals=[CarArrival(23, Direction.STRAIGHT), CarArrival(24, Direction.STRAIGHT)],
+            pedestrian_arrivals=[], is_car_at_stop_line=True,
+        )
+        self.assertEqual(
+            [(car.central_started_at, car.central_finished_at, car.receiver_started_at, car.finished_at)
+             for car in cars(result)],
+            [(23, 25, 35, 37), (60, 62, 72, 74)],
+        )
+        self.assertEqual(result.count(Kind.CAR), 2)
+        self.assertEqual(result.count_finished(), 2)
+        self.assertEqual(simulation.free_places_at_end_count, {"straight": 5, "left": 3, "right": 2})
+
+    def test_prefilled_cars_finish_without_new_arrivals(self):
+        simulation, result = run_simulation(
+            car_arrivals=[], pedestrian_arrivals=[], prefilled_left_count=3,
+        )
+        self.assertEqual([car.receiver_started_at for car in result.participants], [36, 38, 40])
+        self.assertTrue(all(car.is_initial and car.finished_at is not None for car in result.participants))
+        self.assertEqual(result.count_finished(), 3)
+        self.assertEqual(simulation.free_places_at_end_count["left"], 3)
+
+    def test_empty_input_finishes_immediately(self):
+        _, result = run_simulation(car_arrivals=[], pedestrian_arrivals=[])
+        self.assertEqual(result.finished_at, 0)
+        self.assertEqual(result.count_finished(), 0)
+
     def test_synchronized_windows(self):
         _, result = run_simulation(
             car_arrivals=[
@@ -39,7 +76,7 @@ class CoordinatedCorridorTests(unittest.TestCase):
                 CarArrival(0, Direction.RIGHT),
             ],
             pedestrian_arrivals=[],
-            cars_at_stop_line=True,
+            is_car_at_stop_line=True,
         )
         self.assertEqual(
             [
@@ -67,21 +104,21 @@ class CoordinatedCorridorTests(unittest.TestCase):
                 CarArrival(0, Direction.RIGHT),
             ],
             pedestrian_arrivals=[],
-            cars_at_stop_line=True,
-            prefilled_left=3,
+            is_car_at_stop_line=True,
+            prefilled_left_count=3,
             left_release_blocked_until=120,
         )
         by_direction = {user.direction: user for user in cars(result)}
         self.assertEqual(by_direction[Direction.STRAIGHT].central_started_at, 0)
         self.assertEqual(by_direction[Direction.RIGHT].central_started_at, 36)
         self.assertEqual(by_direction[Direction.LEFT].central_started_at, 204)
-        initial = [user for user in result.participants if user.initial]
+        initial_participants = [user for user in result.participants if user.is_initial]
         self.assertEqual(
-            [user.receiver_started_at for user in initial], [156, 158, 160]
+            [user.receiver_started_at for user in initial_participants], [156, 158, 160]
         )
-        self.assertEqual([user.finished_at for user in initial], [158, 160, 162])
+        self.assertEqual([user.finished_at for user in initial_participants], [158, 160, 162])
         self.assertEqual(
-            simulation.free_places_at_end,
+            simulation.free_places_at_end_count,
             {"straight": 5, "left": 3, "right": 2},
         )
 
@@ -95,14 +132,14 @@ class CoordinatedCorridorTests(unittest.TestCase):
         self.assertEqual(
             sum(result.completed_by_direction().values()), len(created)
         )
-        for row in result.monitoring:
-            for direction, capacity in (
-                ("straight", 5),
-                ("left", 3),
-                ("right", 2),
+        for snapshot in result.monitoring:
+            for direction_snapshot, capacity_count in (
+                (snapshot.straight, 5),
+                (snapshot.left, 3),
+                (snapshot.right, 2),
             ):
                 self.assertLessEqual(
-                    row[f"receiver_used_{direction}"], capacity
+                    direction_snapshot.receiver_used_count, capacity_count
                 )
 
     def test_direction_frequencies(self):

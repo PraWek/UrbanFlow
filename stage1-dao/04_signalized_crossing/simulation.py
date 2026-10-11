@@ -6,7 +6,7 @@ from enum import Enum
 from typing import Iterable, Any, Callable, Generator
 
 import simpy
-from simpy import Environment, Timeout
+from simpy import Timeout
 
 
 class Kind(str, Enum):
@@ -14,7 +14,7 @@ class Kind(str, Enum):
     PEDESTRIAN = "pedestrian"
 
 
-class Phase(str, Enum):
+class LightPhase(str, Enum):
     VEHICLES = "vehicles"
     PEDESTRIANS = "pedestrians"
 
@@ -27,6 +27,7 @@ class Participant:
     kind: Kind
     speed: float
     appeared_at: float
+    route_finished_event: simpy.Event
     queue_entered_at: float | None = None
     crossing_started_at: float | None = None
     crossing_finished_at: float | None = None
@@ -43,39 +44,81 @@ class Participant:
         self.queue = queue
         self.id = f"{kind.value}-{id:03d}"
         self.kind = kind
-        self.speed = 15 if kind is Kind.CAR else 1.4
         self.appeared_at = appeared_at
         self.queue_entered_at = None
         self.crossing_started_at = None
         self.crossing_finished_at = None
+        self.route_finished_event = env.event()
 
-    def crossing_duration(self, distance: float):
+    def duration(self, distance: float):
         return distance / self.speed
 
-    def may_start(
-        self,
-        crossing_distance: float,
-        phase_ends_at: float,
-    ) -> bool:
-        return (
-            self.env.now + self.crossing_duration(crossing_distance) <= phase_ends_at + 1e-9
-        )
-
-    def approach(self, distance: float):
-        yield self.env.timeout(distance / self.speed)
+    def approach_crossing(self, distance: float):
+        yield self.env.timeout(self.duration(distance))
         self.queue_entered_at = float(self.env.now)
         print(f"time={self.env.now:.3f}, id={self.id}, kind={self.kind.value}, queued")
         yield self.queue.put(self)
 
-    def finish(self) -> None:
+    def run(self, distance: float):
+        yield from self.approach_crossing(distance)
+        yield self.route_finished_event
         self.crossing_finished_at = float(self.env.now)
         print(f"time={self.env.now:.3f}, id={self.id}, kind={self.kind.value}, finished")
+
+
+class Car(Participant):
+    def __init__(self, env: simpy.Environment, queue: simpy.Store, id: int, appeared_at: float) -> None:
+        super().__init__(env, queue, id, Kind.CAR, appeared_at)
+        self.speed = 15
+
+    def serve_crossing(self, light_phase_controller, crossing_length):
+        while True:
+            car = yield self.queue.get()
+            while light_phase_controller.phase is not LightPhase.VEHICLES:
+                yield light_phase_controller.phase_changed_event
+
+            car.crossing_started_at = float(self.env.now)
+            print(f"time={self.env.now:.3f}, id={car.id}, kind={car.kind.value}, crossing_started")
+
+            yield self.env.timeout(car.duration(crossing_length))
+            car.route_finished_event.succeed()
+
+
+class Pedestrian(Participant):
+    def __init__(self, env: simpy.Environment, queue: simpy.Store, id: int, appeared_at: float) -> None:
+        super().__init__(env, queue, id, Kind.PEDESTRIAN, appeared_at)
+        self.speed = 1.4
+
+    def serve_crossing(self, light_phase_controller, crossing_length):
+        while True:
+            light_phase = yield light_phase_controller.phase_changed_event
+            if light_phase is not LightPhase.PEDESTRIANS:
+                continue
+            ready = [p for p in self.queue.items if p.queue_entered_at is not None and p.queue_entered_at < self.env.now]
+            if not ready:
+                continue
+            group = []
+            for _ in ready:
+                group.append((yield self.queue.get()))
+            for pedestrian in group:
+                pedestrian.crossing_started_at = float(self.env.now)
+                print(f"time={self.env.now:.3f}, id={pedestrian.id}, kind={pedestrian.kind.value}, event=crossing_started")
+            yield self.env.timeout(group[0].duration(crossing_length))
+            for pedestrian in group:
+                pedestrian.route_finished_event.succeed()
 
 
 @dataclass
 class Journal:
     participants: list[Participant] = field(default_factory=list)
     finished_at: float = 0.0
+
+    def count(self, kind: Kind) -> int:
+        return sum(p.kind == kind for p in self.participants)
+
+    def count_finished(self) -> int:
+        return sum(p.crossing_finished_at is not None for p in self.participants)
+
 
 
 def poisson_source(
@@ -96,12 +139,7 @@ def poisson_source(
         spawn(kind)
 
 
-def scheduled_source(
-    env: simpy.Environment,
-    kind: Kind,
-    arrivals: tuple[float, ...],
-    spawn: Callable[..., None]
-):
+def scheduled_source(env: simpy.Environment, kind: Kind, arrivals: tuple[float, ...], spawn: Callable[..., None]):
     for arrival in sorted(arrivals):
         yield env.timeout(arrival - env.now)
         spawn(kind)
@@ -110,12 +148,12 @@ def scheduled_source(
 class PhaseController:
     def __init__(self, env: simpy.Environment) -> None:
         self.env = env
-        self.phase = Phase.VEHICLES
+        self.phase = LightPhase.VEHICLES
         self.phase_ends_at = float(env.now) + 20
         self.phase_changed_event = env.event()
 
     def run(self):
-        phases = ((Phase.VEHICLES, 20), (Phase.PEDESTRIANS, 10))
+        phases = ((LightPhase.VEHICLES, 20), (LightPhase.PEDESTRIANS, 10))
         index = 0
         print(f"time={self.env.now:.3f}, phase change, allowed={self.phase.value}")
         while True:
@@ -142,8 +180,8 @@ class SignalizedCrossingSimulation:
         pedestrian_crossing_length: float = 7,
         car_arrivals: Iterable[float] | None = None,
         pedestrian_arrivals: Iterable[float] | None = None,
-        cars_at_stop_line: bool = False,
-        pedestrians_at_crossing: bool = False,
+        is_car_at_stop_line: bool = False,
+        is_pedestrian_at_crossing: bool = False,
     ) -> None:
         self.env = env
         self.journal = Journal()
@@ -160,7 +198,7 @@ class SignalizedCrossingSimulation:
         if pedestrian_crossing_length <= 0:
             raise ValueError("Длина пешеходного перехода должна быть положительной")
         self.horizon_ms = horizon_ms
-        self.intersection_approach_length = intersection_approach_length
+        self.car_intersection_approach_length = intersection_approach_length
         self.pedestrian_approach_length = pedestrian_approach_length
         self.car_crossing_length = car_crossing_length
         self.pedestrian_crossing_length = pedestrian_crossing_length
@@ -169,8 +207,8 @@ class SignalizedCrossingSimulation:
         for arrivals in (self.car_arrivals, self.pedestrian_arrivals):
             if arrivals is not None and any(time < 0 for time in arrivals):
                 raise ValueError("Время появления не может быть отрицательным")
-        self.cars_at_stop_line = cars_at_stop_line
-        self.pedestrians_at_crossing = pedestrians_at_crossing
+        self.is_car_at_stop_line = is_car_at_stop_line
+        self.is_pedestrian_at_crossing = is_pedestrian_at_crossing
 
     def now(self) -> float:
         return float(self.env.now)
@@ -179,69 +217,27 @@ class SignalizedCrossingSimulation:
         car_queue = simpy.Store(self.env)
         pedestrian_queue = simpy.Store(self.env)
         light_phase_controller = PhaseController(self.env)
-        done_event = self.env.event()
-        counters = {
-            Kind.CAR: 0,
-            Kind.PEDESTRIAN: 0,
-        }
-        completed_participants = 0
-        is_input_closed = False
+        participant_processes: list[simpy.Process] = []
 
         def spawn(kind: Kind) -> None:
-            counters[kind] += 1
+            participant_id = self.journal.count(kind) + 1
 
             if kind == Kind.CAR:
-                participant = Participant(self.env, car_queue, counters[kind], kind, self.now())
-                distance = self.intersection_approach_length
+                participant = Car(self.env, car_queue, participant_id, self.now())
+                distance = self.car_intersection_approach_length
+                crossing_length = self.car_crossing_length
             else:
-                participant = Participant(self.env, pedestrian_queue, counters[kind], kind, self.now())
+                participant = Pedestrian(self.env, pedestrian_queue, participant_id, self.now())
                 distance = self.pedestrian_approach_length
+                crossing_length = self.pedestrian_crossing_length
 
             self.journal.participants.append(participant)
             print(f"time={self.now():.3f}, id={participant.id}, kind={participant.kind.value}, appeared")
 
-            self.env.process(participant.approach(distance))
+            if participant_id == 1:
+                self.env.process(participant.serve_crossing(light_phase_controller, crossing_length))
 
-        def mark_completed(participant: Participant) -> None:
-            nonlocal completed_participants
-            participant.finish()
-            completed_participants += 1
-            if is_input_closed and completed_participants == len(self.journal.participants) and not done_event.triggered:
-                done_event.succeed()
-
-        def serve_cars():
-            while True:
-                car = yield car_queue.get()
-                while (
-                    light_phase_controller.phase is not Phase.VEHICLES or
-                    not self.now() + car.crossing_duration(self.car_crossing_length) <= light_phase_controller.phase_ends_at + 1e-9
-                ):
-                    yield light_phase_controller.phase_changed_event
-
-                car.crossing_started_at = self.now()
-                print(f"time={self.now():.3f}, id={car.id}, kind={car.kind.value}, crossing_started")
-
-                yield self.env.timeout(car.crossing_duration(self.car_crossing_length))
-                mark_completed(car)
-
-
-        def serve_pedestrians():
-            while True:
-                phase = yield light_phase_controller.phase_changed_event
-                if phase is not Phase.PEDESTRIANS:
-                    continue
-                ready = [p for p in pedestrian_queue.items if p.queue_entered_at is not None and p.queue_entered_at < self.now()]
-                if not ready:
-                    continue
-                group = []
-                for _ in ready:
-                    group.append((yield pedestrian_queue.get()))
-                for pedestrian in group:
-                    pedestrian.crossing_started_at = self.now()
-                    print(f"time={self.now():.3f}, id={pedestrian.id}, kind={pedestrian.kind.value}, event=crossing_started")
-                yield self.env.timeout(group[0].crossing_duration(self.pedestrian_crossing_length))
-                for pedestrian in group:
-                    mark_completed(pedestrian)
+            participant_processes.append(self.env.process(participant.run(distance)))
 
         sources = []
         for kind, arrivals, rate, stream_seed in (
@@ -251,18 +247,9 @@ class SignalizedCrossingSimulation:
             process = self.env.process(self.source(kind, arrivals, rate, stream_seed, spawn))
             sources.append(process)
 
-        def close_input():
-            nonlocal is_input_closed
-            yield simpy.AllOf(self.env, sources)
-            is_input_closed = True
-            if is_input_closed and completed_participants == len(self.journal.participants) and not done_event.triggered:
-                done_event.succeed()
-
         self.env.process(light_phase_controller.run())
-        self.env.process(serve_cars())
-        self.env.process(serve_pedestrians())
-        self.env.process(close_input())
-        self.env.run(until=done_event)
+        self.env.run(until=simpy.AllOf(self.env, sources))
+        self.env.run(until=simpy.AllOf(self.env, participant_processes))
         self.journal.finished_at = self.now()
         return self.journal
 
@@ -277,12 +264,13 @@ def main() -> None:
     result = SignalizedCrossingSimulation(
         car_arrivals=[0, 0, 0],
         pedestrian_arrivals=[1, 1],
-        cars_at_stop_line=True,
-        pedestrians_at_crossing=True,
+        is_car_at_stop_line=True,
+        is_pedestrian_at_crossing=True,
         env=simpy.Environment()
     ).run()
     for participant in result.participants:
-        print(f"id={participant.id}, kind={participant.kind.value}, queue_entered_at={participant.queue_entered_at}, crossing_started_at={participant.crossing_started_at}, crossing_finished_at={participant.crossing_finished_at}")
+        print(f"id={participant.id}, kind={participant.kind.value}, queue_entered_at={participant.queue_entered_at}, "
+              f"crossing_started_at={participant.crossing_started_at}, crossing_finished_at={participant.crossing_finished_at}")
 
 
 if __name__ == "__main__":
