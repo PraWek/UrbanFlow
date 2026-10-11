@@ -35,6 +35,7 @@ $$
 
 Материалы: 
 
+0. https://projector.datacamp.com/?projector_key=course_59914_33250b672fa85f691135dd7cb41169c2
 1. [SimPy - Basic Concepts](https://simpy.readthedocs.io/en/latest/simpy_intro/basic_concepts.html)
 2. [SimPy — Process Interaction](https://simpy.readthedocs.io/en/latest/simpy_intro/process_interaction.html)
 
@@ -63,8 +64,8 @@ $$
 
 Материалы:
 
-1. https://projector-video-pdf-converter.datacamp.com/30360/chapter2.pdf, Resources blocks
-2. [SimPy — Ресурсы совместного использования](https://simpy.readthedocs.io/en/stable/topical_guides/resources.html)
+1. https://projector-video-pdf-converter.datacamp.com/30360/chapter2.pdf, разделы про Resources
+3. [SimPy — Ресурсы совместного использования](https://simpy.readthedocs.io/en/stable/topical_guides/resources.html)
 
 ### Monitoring
 
@@ -82,6 +83,7 @@ SimPy documentation
 3. https://simpy.readthedocs.io/en/latest/topical_guides/resources.html
 
 Subject specific tutorials 
+0. https://projector-video-pdf-converter.datacamp.com/30360/chapter3.pdf
 1. https://pythonhealthdatascience.github.io/intro-open-sim/lab/index.html
 2. https://jckantor.github.io/cbe30338-2021/07.01-Introduction-to-Simpy.html
 3. https://des.hsma.co.uk/intro_to_des_concepts.html
