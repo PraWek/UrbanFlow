@@ -1,6 +1,6 @@
-## Этап 1. Познакомиться с возможностями SimPy
+# Этап 1. Познакомиться с возможностями SimPy
 
-### Формальная задача этапа
+## Формальная задача этапа
 
 Научиться представлять систему как набор взаимодействующих дискретных процессов и событий:
 
@@ -13,14 +13,12 @@ $$
 | время | события |
 | ------------------ | ---------------------------------- |
 | $t = 12.4$ | автомобиль появился; |
-| $t = 18.7$ | автомобиль доехал до перекрёстка; |
+| $t = 18.7$ | автомобиль доехал до перекрёстка и встал в очередь; |
 | $t = 23.0$ | загорелся зелёный; |
 | $t = 24.8$ | автомобиль покинул очередь; |
 | $t = 37.1$ | автомобиль достиг следующего перекрёстка. |
 
-Материалы: 
-
-1. https://projector-video-pdf-converter.datacamp.com/30360/chapter1.pdf
+**Материалы:** [DataCamp - Introduction to DES concepts](https://projector-video-pdf-converter.datacamp.com/30360/chapter1.pdf)
 
 ## Что рабочая группа должна освоить в SimPy
 
@@ -33,11 +31,10 @@ $$
 | `Timeout` | Event специального типа, представляет из себя событие "прошел определенный промежуток времени". Такие событие позволяют процессу засыпать на заданное время, потом просыпаться. Или будить другие процессы |
 | `Environment`      | Environment это среда проведения экспериментов, которая отвечает за координацию работы процессов |
 
-Материалы: 
+**Материалы:** 
 
-0. https://projector.datacamp.com/?projector_key=course_59914_33250b672fa85f691135dd7cb41169c2
-1. [SimPy - Basic Concepts](https://simpy.readthedocs.io/en/latest/simpy_intro/basic_concepts.html)
-2. [SimPy — Process Interaction](https://simpy.readthedocs.io/en/latest/simpy_intro/process_interaction.html)
+1. [DataCamp — Developing DES using SimPy](https://projector.datacamp.com/?projector_key=course_59914_33250b672fa85f691135dd7cb41169c2), Processes, yield, events, timeouts
+2. [SimPy - Basic Concepts](https://simpy.readthedocs.io/en/latest/simpy_intro/basic_concepts.html)
 
 ### Ресурсы совместного использования
 
@@ -62,42 +59,16 @@ $$
 
 У `Resource` значение `capacity` ограничивает число **одновременных пользователей**, а очередь ожидающих может быть длиннее. У `Container` хранится только количество; у `Store` сохраняются данные каждого объекта.
 
-Материалы:
+**Материалы:**
 
-1. https://projector-video-pdf-converter.datacamp.com/30360/chapter2.pdf, разделы про Resources
-3. [SimPy — Ресурсы совместного использования](https://simpy.readthedocs.io/en/stable/topical_guides/resources.html)
-
-### Monitoring
-
-Сбора статистики модели.
-
-Материалы:
-  [SimPy — Monitoring](https://simpy.readthedocs.io/en/stable/topical_guides/monitoring.html)
-
-## Про подходы к построению моделей
-
-Материалы:
-
-1. https://projector-video-pdf-converter.datacamp.com/30360/chapter3.pdf
-2. https://des.hsma.co.uk/intro_to_des_concepts.html
-
-## Учебные материалы
-
-SimPy documentation
-
-1. https://simpy.readthedocs.io/en/latest/topical_guides/environments.html
-2. https://simpy.readthedocs.io/en/latest/topical_guides/events.html
-3. https://simpy.readthedocs.io/en/latest/topical_guides/resources.html
-
-SimPy intro courses
-
-0. https://www.datacamp.com/courses/discrete-event-simulation-in-python - paid
-1. https://pythonhealthdatascience.github.io/intro-open-sim/lab/index.html - free
-2. https://jckantor.github.io/cbe30338-2021/07.01-Introduction-to-Simpy.html - free
+1. [DataCamp — Developing DES using SimPy](https://projector-video-pdf-converter.datacamp.com/30360/chapter2.pdf), разделы "Types of resources" и "Managing the scheduling of events"
+2. [SimPy — Ресурсы совместного использования](https://simpy.readthedocs.io/en/stable/topical_guides/resources.html)
 
 ## Упражнения
 
-Сначала моделируется цикл одного светофора. Затем упражнения последовательно собирают модель одной улицы: автомобили едут по дороге, пешеходы подходят по тротуару к регулируемому переходу и пересекают проезжую часть. Время измеряется в секундах, расстояние — в метрах, скорость — в метрах в секунду. Все числа ниже — учебные параметры, а не рекомендации по организации реального движения.
+Сначала моделируется цикл одного светофора. Затем упражнения последовательно собирают модель одной улицы: автомобили едут по дороге, пешеходы подходят по тротуару к регулируемому переходу и пересекают проезжую часть. 
+
+Время измеряется в секундах, расстояние — в метрах, скорость — в метрах в секунду. Все числа ниже — учебные параметры, а не рекомендации по организации реального движения.
 
 ### 1. Симуляция одного светофора
 
@@ -144,7 +115,8 @@ stateDiagram-v2
 
 **Что освоить:** функцию-генератор, `yield`, `env.timeout`, `env.now`, `env.process`, повторение процесса и ограничение времени симуляции.
 
-**Материалы:** [DataCamp — Introduction to the SimPy package](https://projector-video-pdf-converter.datacamp.com/30360/chapter2.pdf), слайды 3–7: генераторы, основные методы SimPy и пример светофоров. Остановка по времени описана в [SimPy — Environments](https://simpy.readthedocs.io/en/latest/topical_guides/environments.html).
+**Материалы:** [DataCamp — Introduction to the SimPy package](https://projector-video-pdf-converter.datacamp.com/30360/chapter2.pdf), 
+Traffic lights: Building a SimPy model.
 
 ### 2. Автомобиль едет по дороге, пешеход подходит к переходу
 
@@ -223,7 +195,7 @@ $$
 3. При каждом появлении присваивать участнику уникальный идентификатор и запускать его процесс движения, не дожидаясь завершения предыдущего участника.
 4. Сохранять время появления и прибытия каждого участника; использовать фиксированный seed для воспроизводимости.
 
-**Проверка результата.** При повторном запуске с тем же seed журнал совпадает. Каждый автомобиль проводит в пути 10 с, каждый пешеход — 20 с. За 600 с ожидается в среднем 60 автомобилей и 30 пешеходов, но в отдельном запуске количество случайно и не обязано совпадать с этими значениями. После завершения всех процессов число прибывших равно числу появившихся отдельно для каждого типа участников.
+**Проверка результата.** При повторном запуске с тем же seed журнал совпадает. Каждый автомобиль проводит в пути 10с, каждый пешеход — 20с. За 600с ожидается в среднем 60 автомобилей и 30 пешеходов, но в отдельном запуске количество случайно и не обязано совпадать с этими значениями. После завершения всех процессов число прибывших равно числу появившихся отдельно для каждого типа участников.
 
 **Что освоить:** процессы-генераторы, случайные интервалы, единицы интенсивности и одновременное движение многих участников.
 
@@ -264,7 +236,7 @@ stateDiagram-v2
 5. Записывать для каждого участника время входа в очередь, начала и завершения проезда или перехода.
 6. После отключения генераторов продолжать обслуживание до выхода всех участников, затем завершать симуляцию.
 
-### Модель автомобиля и пешехода
+#### Модель автомобиля и пешехода
 
 Автомобили и пешеходы удобно моделировать в виде двух классов - Vehicle и Pedestrian с общим предком Participant. 
 Participant содержит id, скорость передвижения и общие мониторинговые данные (времена прохождения различных этапов):
@@ -366,6 +338,8 @@ flowchart LR
 
 **Что освоить:** `Store`, FIFO, ожидание событий, взаимодействие процессов и отделение движения от ожидания в очереди.
 
+**Материалы:** [DataCamp — Deterministic events and processes](https://projector-video-pdf-converter.datacamp.com/30360/chapter3.pdf).
+
 ### 5. Ограниченная вместимость участка A перед переходом
 
 **Задача.** Продолжить модель упражнения 4: ограничить число автомобилей на подъезде к регулируемому переходу. Показать, как заполнение участка A задерживает въезд следующих автомобилей.
@@ -400,7 +374,7 @@ flowchart LR
 
 **Что освоить:** `Container`, ограничение вместимости, FIFO-допуск на участок, разделение появления и въезда автомобиля, учёт внешней очереди и освобождение места после завершения движения.
 
-### 6. Затор за переходом блокирует проезд автомобилей
+## 6. Затор за переходом блокирует проезд автомобилей
 
 **Задача.** Продолжить модель упражнения 4: добавить после перехода второй дорожный участок B, на котором помещается не более пяти автомобилей. Показать, как заполнение B останавливает выпуск автомобилей с участка A перед переходом, даже когда автомобилям разрешён проезд.
 
@@ -504,6 +478,26 @@ flowchart LR
 
 **Что освоить:** разделение потока по маршрутам, отдельные очереди направлений, согласование светофоров, взаимодействие нескольких перекрёстков и блокирование конкретного направления из-за ограниченной вместимости следующего участка.
 
-### Критерий завершения этапа 1
+## Критерий завершения этапа 1
 
 После завершения этапа знаний SimPy достаточно, чтобы переходить к транспортной модели.
+
+## Ссылки
+
+### SimPy intro courses
+
+1. [DataCamp - DES in Python Course](https://www.datacamp.com/courses/discrete-event-simulation-in-python) - paid
+    1. [Chapter 1. Introduction to DES concepts](https://projector-video-pdf-converter.datacamp.com/30360/chapter1.pdf)
+    2. [Chapter 2. Developing DES using SimPy](https://projector-video-pdf-converter.datacamp.com/30360/chapter2.pdf)
+    3. [Chapter 3. Modelling DES](https://projector-video-pdf-converter.datacamp.com/30360/chapter3.pdf)
+2. [HSMA - Introduction to DES Concepts](https://des.hsma.co.uk/intro_to_des_concepts.html)
+3. [Building Healthcare DES models - An Introductory Tutorial](https://pythonhealthdatascience.github.io/intro-open-sim/lab/index.html)
+4. [Chemical Process Control Course - Chapter 7. Introduction to SimPy](https://jckantor.github.io/cbe30338-2021/07.01-Introduction-to-Simpy.html)
+
+### SimPy documentation
+
+1. https://simpy.readthedocs.io/en/latest/topical_guides/environments.html
+2. https://simpy.readthedocs.io/en/latest/topical_guides/process_interaction.html
+2. https://simpy.readthedocs.io/en/latest/topical_guides/events.html
+3. https://simpy.readthedocs.io/en/latest/topical_guides/resources.html
+4. https://simpy.readthedocs.io/en/stable/topical_guides/monitoring.html
